@@ -18,7 +18,7 @@
 #define SIZE_EMAIL 50
 
 typedef struct Row {
-    uint64_t id;
+    int id;
     char username[SIZE_USERNAME];
     char email[SIZE_EMAIL];
 } Row;
@@ -32,16 +32,17 @@ Table* table;
 
 // https://stackoverflow.com/questions/3553296/sizeof-single-struct-member-in-c
 const  size_t ID_SIZE = sizeof( ((Row*)0) -> id);
-const  size_t USERNAME_SIZE = sizeof( ((Row*)0) -> id);
-const  size_t EMAIL_SIZE = sizeof( ((Row*)0) -> id);
+const  size_t USERNAME_SIZE = sizeof( ((Row*)0) -> username);
+const  size_t EMAIL_SIZE = sizeof( ((Row*)0) -> email);
+// const  size_t ROW_SIZE = ID_SIZE + EMAIL_SIZE + USERNAME_SIZE;
 const  size_t ROW_SIZE = sizeof(Row);
 
 const int ID_OFFSET = 0;
 const int USERNAME_OFFSET = ID_OFFSET + ID_SIZE;
 const int EMAIL_OFFSET = USERNAME_OFFSET + USERNAME_SIZE;
 
-const int ROWs_PER_PAGE = PAGE_SIZE/ROW_SIZE;
-const int MAX_ROWS = MAX_PAGES * ROWs_PER_PAGE;
+const int ROWS_PER_PAGE = PAGE_SIZE/ROW_SIZE;
+const int MAX_ROWS = MAX_PAGES * ROWS_PER_PAGE;
 
 
 
@@ -122,18 +123,19 @@ void init_table() {
 }
 
 void print(Row* result) {
-    printf("ID\tName\tEmail\n");
-    printf("%d\t%s\t%s\n", result->id, result->username, result->email);
+    printf("ID \t Name \t Email \n");
+    printf("%d \t %s \t %s \n", result->id, result->username, result->email);
 }
 
 // Allocate space for the page
 void* page_index(int currentindex) {
-    int pagenumber = currentindex / ROWs_PER_PAGE;
+    int pagenumber = currentindex / ROWS_PER_PAGE;
     void* page = table->pages[pagenumber];
     if(page == NULL) {
         table->pages[pagenumber] = malloc(PAGE_SIZE);
     }
-    return table->pages[pagenumber] + (currentindex % ROWs_PER_PAGE) * ROW_SIZE;
+
+    return table->pages[pagenumber] + (currentindex % ROWS_PER_PAGE) * ROW_SIZE;
 } 
 
 void read_input() {
@@ -224,7 +226,7 @@ MetaStatus prepare_statement(char* input_statement) {
 MetaStatus exec_select(Statement* statement) {
     Row result;
     for (int i = 0; i < table->count; i++) {
-        getdata(page_index(i), &result);
+        getdata(&result, page_index(i));
         print(&result);
   }
   return EXEC_SUCCESS;
@@ -238,7 +240,7 @@ MetaStatus exec_insert(Statement* statement) {
     //strtok later. For now a simple sscanf
     // Structure 
     // insert into table id username email 1 rohit rohit@rohit.com
-    sscanf(statement->statement, "insert %jd %s %s", &(statement->row.id), &(statement->row.username), &(statement->row.email));
+    sscanf(statement->statement, "insert %d %s %s", &(statement->row.id), &(statement->row.username), &(statement->row.email));
     putdata(&(statement->row), page_index(table->count));
     table->count = table->count + 1;
 
