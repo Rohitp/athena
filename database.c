@@ -17,6 +17,14 @@
 #define SIZE_USERNAME 50
 #define SIZE_EMAIL 50
 
+
+// The physical file where we store the data. So the database. 
+typedef struct pager {
+
+} Pager;
+
+Pager *pager;
+
 typedef struct Row {
     int id;
     char username[SIZE_USERNAME];
@@ -34,7 +42,6 @@ Table* table;
 const  size_t ID_SIZE = sizeof( ((Row*)0) -> id);
 const  size_t USERNAME_SIZE = sizeof( ((Row*)0) -> username);
 const  size_t EMAIL_SIZE = sizeof( ((Row*)0) -> email);
-// const  size_t ROW_SIZE = ID_SIZE + EMAIL_SIZE + USERNAME_SIZE;
 const  size_t ROW_SIZE = sizeof(Row);
 
 const int ID_OFFSET = 0;
