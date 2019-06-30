@@ -271,28 +271,28 @@ void print(Row* result) {
 }
 
 // Allocate space for the page
-void* page_index(int currentindex) {
-    int pagenumber = currentindex / ROWS_PER_PAGE;
+void* page_index(Cursor* cursor) {
+    int pagenumber = cursor->row / ROWS_PER_PAGE;
 
     // Out of memory exception
     if(pagenumber > MAX_PAGES) {
         exit(0);
     }
     
-    if(pager->pages[pagenumber] == NULL) {
+    if(cursor->table->pager->pages[pagenumber] == NULL) {
 
         // We don't have it in memory. Getting it from the disk.
-        pager->pages[pagenumber] = malloc(PAGE_SIZE);
-        int numpages = pager->filelength / PAGE_SIZE;
+        cursor->table->pager->pages[pagenumber] = malloc(PAGE_SIZE);
+        int numpages = cursor->table->pager->filelength / PAGE_SIZE;
         
         if(pagenumber <= numpages) {
-            fseek(pager->file, pagenumber * PAGE_SIZE, SEEK_SET);
-            fread(pager->pages[pagenumber], PAGE_SIZE, 1, pager->file);
+            fseek(cursor->table->pager->file, pagenumber * PAGE_SIZE, SEEK_SET);
+            fread(cursor->table->pager->pages[pagenumber], PAGE_SIZE, 1, cursor->table->pager->file);
         }
     }
 
     
-    return pager->pages[pagenumber] + (currentindex % ROWS_PER_PAGE) * ROW_SIZE;
+    return cursor->table->pager->pages[pagenumber] + (cursor->row % ROWS_PER_PAGE) * ROW_SIZE;
 } 
 
 void read_input() {
@@ -381,11 +381,17 @@ MetaStatus prepare_statement(char* input_statement) {
 
 // Add formatting and specific parameters here. For now it's a scan of everything
 MetaStatus exec_select(Statement* statement) {
+
+    // Point to beginning of table and advance cursor using our next function
+    Cursor* cursor = init_cursor(START_CURSOR);
     Row result;
-    for (int i = 0; i < table->count; i++) {
-        getdata(&result, page_index(i));
+    while(! cursor->isAtEnd ) {
+        getdata(&result, page_index(cursor));
         print(&result);
+        _next(cursor);
   }
+
+  free(cursor);
   return EXEC_SUCCESS;
 }
 
@@ -398,8 +404,13 @@ MetaStatus exec_insert(Statement* statement) {
     // Structure 
     // insert into table id username email 1 rohit rohit@rohit.com
     sscanf(statement->statement, "insert %d %s %s", &(statement->row.id), &(statement->row.username), &(statement->row.email));
-    putdata(&(statement->row), page_index(table->count));
+
+    // Create a cursor that points to the end of the table and insert it there
+    Cursor* cursor = init_cursor(END_CURSOR);
+    putdata(&(statement->row), page_index(cursor));
     table->count = table->count + 1;
+
+    free(cursor);
 
     return EXEC_SUCCESS;
 }
