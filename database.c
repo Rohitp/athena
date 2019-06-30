@@ -81,6 +81,9 @@ typedef enum metastatuses {EXEC_SUCCESS, EXEC_FAILURE, UNRECOGNIZED, SIZE_OVERFL
 // Statementtypes. DDL and DML here
 typedef enum statementtype {INSERT_STATEMENT, SELECT_STATEMENT, DELETE_STATEMENT, CREATE_STATEMENT, UPDATE_STATEMENT} StatementType;
 
+// We'll add more cursor types later
+typedef enum cursorType { START_CURSOR, END_CURSOR } CursorType;
+
 
 
 
@@ -109,6 +112,35 @@ MetaStatus exec_meta_command(char*);
 MetaStatus prepare_statement(char*);
 MetaStatus exec_insert(Statement*);
 MetaStatus exec_select(Statement*);
+
+
+// Creates cursors. We'll create it based on type param
+Cursor* init_cursor(CursorType type) {
+    Cursor* cursor = malloc(sizeof(Cursor));
+    cursor->table = table;
+    
+    if (type == START_CURSOR) {
+        cursor->row = 0;
+
+        // Cursor is at the end of table only if there aren't any rows in it
+        cursor->isAtEnd = (table->count == 0) ? true : false;
+
+    } else {
+        cursor->row = table->count;
+        cursor->isAtEnd = true;
+    }
+
+    return cursor;
+}
+
+
+// Advances the cursor. We use this for selects
+void _next(Cursor* cursor) {
+    cursor->row = cursor->row + 1;
+    if(cursor->row >= table->count) {
+        cursor->isAtEnd = true;
+    }
+}
 
 // Move these to a different file. Can't figure out how to work  with extern variables properly.
 void putdata(Row* row, void* destination) {
