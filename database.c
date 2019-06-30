@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<string.h>
 #include<stdlib.h>
+#include <stdbool.h> 
 #include "utils.h"
 
 // Okay. Python and Java have made me forget C. I'm very rusty with pointers and memory allocation and structs and the like
@@ -21,7 +22,7 @@
 #define META_FILE "meta.info"
 
 
-// The physical file where we store the data. So the database. 
+// The pager is the interface between the data file and the data 
 typedef struct pager {
     void* pages[MAX_PAGES];
     FILE* file;
@@ -42,6 +43,21 @@ typedef struct table {
 } Table;
 
 Table* table;
+
+// A cursor points to the current row so we can perform operations
+// We have a cursor for the start and end of the table
+typedef struct cursor {
+
+    // So we can deal with multiple tables later
+    Table* table;
+
+    // We need only a reference to the row in question. The actual contents are irrelevant to the cursor
+    int row;
+
+    // So we know if it's the start or end cursor
+    bool isAtEnd;
+
+} Cursor;
 
 // https://stackoverflow.com/questions/3553296/sizeof-single-struct-member-in-c
 const  size_t ID_SIZE = sizeof( ((Row*)0) -> id);
@@ -79,12 +95,14 @@ typedef struct InputBufferStruct {
 InputBuffer buffer;
 
 
-// A holder for a statement and it's meta information. At thisn point I'm just reventing classes here
+// A holder for a statement and it's meta information. At thisn point I'm just re-inventing classes here
 typedef struct Statement {
     StatementType statementtype;
     char* statement;
     Row row;
 } Statement;
+
+
 
 
 MetaStatus exec_meta_command(char*);
