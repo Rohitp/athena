@@ -17,10 +17,15 @@
 #define SIZE_USERNAME 50
 #define SIZE_EMAIL 50
 
+#define PAGEFILE "db.txt"
+#define META_FILE "meta.info"
+
 
 // The physical file where we store the data. So the database. 
 typedef struct pager {
-
+    void* pages[MAX_PAGES];
+    FILE* file;
+    long int filelength;
 } Pager;
 
 Pager *pager;
@@ -33,7 +38,7 @@ typedef struct Row {
 
 typedef struct table {
     int count;
-    void* pages[MAX_PAGES];
+    Pager* pager;
 } Table;
 
 Table* table;
@@ -114,19 +119,100 @@ void make_cli() {
     printf("\n>");
 }
 
+
+// We ride on naglfar and flush the pages to the disk
+void naglfar(int pagenumber) {
+
+    if(pager->pages[pagenumber] == NULL) {
+        // Doing a lot of exits. Need to figure out a better flow
+        printf("Passed null page to naglfr\n");
+        exit(0);
+    }
+
+    if(fseek(pager->file, pagenumber * PAGE_SIZE, SEEK_SET) != 0) {
+        printf("Can't seek\n");
+        exit(0);
+    }
+
+    size_t written = fwrite(pager->pages[pagenumber], PAGE_SIZE, 1, pager->file);
+
+    if(!written) {
+        printf("Couldn't write to file\n");
+        exit(0);
+    }
+
+
+}
+
+// The end of all things
+void ragnarok() {
+    int numpages = table->count / ROWS_PER_PAGE;
+    for(int i = 0; i <= numpages; i++) {
+        if(pager->pages[i] == NULL) {
+            continue;
+        }
+
+        naglfar(i);
+        free(pager->pages[i]);
+        pager->pages[i] = NULL;
+    }
+
+    FILE *meta = fopen(META_FILE, "w");
+
+    fprintf(meta, "%d\n", table->count);
+
+    
+    fclose(pager->file);
+    fclose(meta);
+    free(pager);
+    free(table);
+}
+
 void housekeeping(InputBuffer* buffer) {
     // Passing reference here
     free(buffer->input);
+    ragnarok();
+
 }
 
 // We init the table. There is no free cause we nevre want to free this. Termination is our free
-void init_table() {
-    table = malloc(sizeof(Table));
-    table->count  = 0;
+void init() {
+
+    pager = malloc(sizeof(Pager));
+
+    FILE* pagefile = fopen(PAGEFILE,"r+");
+
+    FILE* metafile = fopen(META_FILE, "r+");
+    // Nothing more to do. Quit. No operating soleley in memeory. We're not redis
+    if(pagefile == NULL) {
+        exit(0);
+    }
+
     int i = 0;
     for(i = 0; i < MAX_PAGES; i++) {
-        table->pages[i] = NULL;
+        pager->pages[i] = NULL;
     } 
+
+    fseek(pagefile, 0L, SEEK_END);
+    long int length = ftell(pagefile);
+
+    pager->file = pagefile;
+    pager->filelength = length;
+
+    table = malloc(sizeof(Table));
+    table->count  = 0;
+    table->pager = pager;
+
+    int storedcount = 0;
+    FILE *meta = fopen(META_FILE,"r");
+    fscanf(meta,"%d",&storedcount);
+    fclose(meta);
+    if( storedcount > 0) {
+        table->count = storedcount;
+    }
+
+
+  
 }
 
 void print(Row* result) {
@@ -137,12 +223,26 @@ void print(Row* result) {
 // Allocate space for the page
 void* page_index(int currentindex) {
     int pagenumber = currentindex / ROWS_PER_PAGE;
-    void* page = table->pages[pagenumber];
-    if(page == NULL) {
-        table->pages[pagenumber] = malloc(PAGE_SIZE);
+
+    // Out of memory exception
+    if(pagenumber > MAX_PAGES) {
+        exit(0);
+    }
+    
+    if(pager->pages[pagenumber] == NULL) {
+
+        // We don't have it in memory. Getting it from the disk.
+        pager->pages[pagenumber] = malloc(PAGE_SIZE);
+        int numpages = pager->filelength / PAGE_SIZE;
+        
+        if(pagenumber <= numpages) {
+            fseek(pager->file, pagenumber * PAGE_SIZE, SEEK_SET);
+            fread(pager->pages[pagenumber], PAGE_SIZE, 1, pager->file);
+        }
     }
 
-    return table->pages[pagenumber] + (currentindex % ROWS_PER_PAGE) * ROW_SIZE;
+    
+    return pager->pages[pagenumber] + (currentindex % ROWS_PER_PAGE) * ROW_SIZE;
 } 
 
 void read_input() {
@@ -278,7 +378,7 @@ MetaStatus exec_meta_command(char* command) {
 }
 
 int main(int argc, char* argv[]) {
-    init_table();
+    init();
     make_cli();
     read_input();
 }
